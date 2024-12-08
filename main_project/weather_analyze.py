@@ -24,7 +24,7 @@ def get_location_key_by_name(city_name: str, api_key: str):
             return city_key
         else:
             return None
-    except requests.exceptions.RequestException as e:
+    except Exception:
         return None
 
 def get_location_key_by_lat_lon(api_key: str, lat: str, lon: str):
@@ -42,11 +42,8 @@ def get_location_key_by_lat_lon(api_key: str, lat: str, lon: str):
         location_key = location_data["Key"]
         return location_key
 
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при запросе ключа локации: {e}")
-    except KeyError as e:
-        print(f"Ошибка при обработке данных локации: {e}")
-
+    except Exception:
+        return None
 
 def get_weather_parameters(api_key: str, location_key: str):
     weather_dict = {}
@@ -75,10 +72,8 @@ def get_weather_parameters(api_key: str, location_key: str):
 
         return weather_dict
 
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при запросе данных о погоде: {e}")
-    except KeyError as e:
-        print(f"Ошибка при обработке данных о погоде: {e}")
+    except Exception:
+        return None
 
 
 def check_bad_weather(weather_parameters: dict):

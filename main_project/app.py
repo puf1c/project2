@@ -29,6 +29,9 @@ def submit_route():
         start_weather = get_weather_parameters(api_key=API_KEY, location_key=start_location_key)
         end_weather = get_weather_parameters(api_key=API_KEY, location_key=end_location_key)
 
+        if not start_weather or not end_weather:
+            return 'Не удалось получить данные о погоде для указанных городов.'
+
         check_start_weather = check_bad_weather(start_weather)
         check_end_weather = check_bad_weather(end_weather)
 
