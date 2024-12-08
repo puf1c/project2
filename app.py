@@ -56,6 +56,12 @@ def get_weather_parameters(api_key: str, lat: str, lon: str):
     except KeyError as e:
         print(f"Ошибка при обработке данных локации: {e}")
 
+def check_bad_weather(weather_parameters: dict):
+    if (-20 < weather_parameters['temperature'] < 35) or (weather_parameters['wind_speed'] > 10) or (weather_parameters['rain_probability'] > 70):
+        return 'bad'
+    else:
+        return 'good'
+
 def main():
     get_weather_parameters(API_KEY, LATITUDE, LONGITUDE)
 
