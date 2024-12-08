@@ -1,6 +1,6 @@
 import requests
 
-API_KEY = "zUbkkMW5KuUukUeAnMei0UyJIyy45eOD"
+API_KEY = "nnYAI8k1VksWAqzZOQEebcG1eJ6Q1Nw0"
 
 LATITUDE = "55.7558"
 LONGITUDE = "37.6173"
@@ -82,13 +82,16 @@ def get_weather_parameters(api_key: str, location_key: str):
 
 
 def check_bad_weather(weather_parameters: dict):
-    if (-20 < weather_parameters['temperature'] < 35) or (weather_parameters['wind_speed'] > 10) or (weather_parameters['rain_probability'] > 70):
+    if (weather_parameters['temperature'] > 35) or (weather_parameters['temperature'] < -20) or (weather_parameters['wind_speed'] > 20) or (weather_parameters['rain_probability'] > 70):
         return 'bad'
     else:
         return 'good'
 
 
-def main():
-    #проверка функции check_bad_weather
-    '''test_weather_params = {'temperature':-30, 'wind_speed': 20, 'rain_probability':30}
-    print(check_bad_weather(test_weather_params))'''
+#проверка функции check_bad_weather
+'''
+test_weather_params = {'temperature':-30, 'wind_speed': 20, 'rain_probability':30}
+print(check_bad_weather(test_weather_params))
+
+print(check_bad_weather(get_weather_parameters(api_key=API_KEY, location_key=get_location_key_by_name(city_name='hawaii', api_key=API_KEY))))
+print(get_weather_parameters(api_key=API_KEY, location_key=get_location_key_by_name(city_name='hawaii', api_key=API_KEY)))'''
