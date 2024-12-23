@@ -1,127 +1,171 @@
-from weather_analyze import get_weather_parameters, check_bad_weather, get_location_key_by_name,
-from flask import Flask, request, render_template
+from weather_analyze import get_weather_parameters, check_bad_weather, get_location_key_by_name, get_weather_forecast, get_coordinates
 from flask import Flask, render_template, request, redirect
-import plotly.express as px
-import pandas as pd
-import dash
-from dash import dcc, html
+from dash import Dash, dcc, html, Input, Output, callback_context, ALL, ctx
+import dash_leaflet
+import plotly.graph_objs as go
+import json
 
-API_KEY = "nnYAI8k1VksWAqzZOQEebcG1eJ6Q1Nw0"
+API_KEY = "	zUbkkMW5KuUukUeAnMei0UyJIyy45eOD"
 
+cities = []
 weather_data = {}
-weather_comment = ""
 
 app = Flask(__name__)
 
-# Главная страница с формой
 @app.route('/')
 def home():
     return render_template('form.html')
 
-# Обработка данных формы
 @app.route('/submit-route', methods=['POST'])
 def submit_route():
     try:
-        start_name = request.form.get('start')
-        end_name = request.form.get('end')
+        start_name = request.form.get('start').strip()
+        waypoints = [city.strip() for city in request.form.getlist('waypoints') if city.strip()]
+        end_name = request.form.get('end').strip()
 
-        start_location_key = get_location_key_by_name(api_key=API_KEY, city_name=start_name)
-        end_location_key = get_location_key_by_name(api_key=API_KEY, city_name=end_name)
+        global cities, weather_data
+        cities = [start_name] + waypoints + [end_name]
+        weather_data = {}
 
-        if not start_location_key or not end_location_key:
-            return 'Не удалось найти местоположение для указанных городов.'
+        for city in cities:
+            try:
+                location_key = get_location_key_by_name(api_key=API_KEY, city_name=city)
+                if not location_key:
+                    return f"Не удалось найти местоположение для {city}."
 
-        start_weather = get_weather_parameters(api_key=API_KEY, location_key=start_location_key)
-        end_weather = get_weather_parameters(api_key=API_KEY, location_key=end_location_key)
+                forecast = get_weather_forecast(api_key=API_KEY, location_key=location_key, days=5)
+                if not forecast:
+                    return f"Не удалось получить прогноз для {city}."
 
-        if not start_weather or not end_weather:
-            return 'Не удалось получить данные о погоде для указанных городов.'
-
-        global weather_data
-        weather_data = {
-            "start_city": start_name,
-            "end_city": end_name,
-            "start_weather": start_weather,
-            "end_weather": end_weather
-        }
-
-        check_start_weather = check_bad_weather(start_weather)
-        check_end_weather = check_bad_weather(end_weather)
-
-        global weather_comment
-        if check_start_weather == 'good' and check_end_weather == 'good':
-            weather_comment = 'В обеих точках приятная погода!'
-        elif check_start_weather == 'bad' and check_end_weather == 'good':
-            weather_comment = f'В {start_name} сейчас погода не очень (('
-        elif check_start_weather == 'good' and check_end_weather == 'bad':
-            weather_comment = f'В {end_name} сейчас погода не очень (('
-        else:
-            weather_comment = 'В обеих точках ужасная погода!'
+                weather_data[city] = forecast
+            except Exception as e:
+                return f"Ошибка обработки города {city}: {e}"
 
         return redirect('/weather-comparison')
 
     except Exception as e:
-        return f'Произошла ошибка {e} при обработке данных.'
+        return f'Произошла ошибка: {e}'
 
-dash_app = dash.Dash(__name__, server=app, url_base_pathname='/weather-comparison/')
+
+dash_app = Dash(__name__, server=app, url_base_pathname='/weather-comparison/')
 
 dash_app.layout = html.Div([
-    html.H1("Сравнение погодных условий"),
-    dcc.Graph(id='weather-histogram'),
-    html.Div(id='weather-comment', style={'font-size': '20px', 'margin-top': '20px'}),
-    html.A("Вернуться на главную", href="/", style={'display': 'block', 'margin-top': '20px'})
-])
+    html.H1("Карта маршрута", style={'textAlign': 'center', 'color': '#000', 'marginBottom': '20px'}),
+    html.P(
+        "Чтобы поменять город, нажмите на иконку на карте.",
+        style={'textAlign': 'center', 'color': '#000', 'marginBottom': '20px'}
+    ),
+    html.Div([
+        dash_leaflet.Map(center=[50, 50], zoom=4, children=[
+            dash_leaflet.TileLayer(),
+            dash_leaflet.LayerGroup(id="markers-layer"),
+            dash_leaflet.Polyline(
+                id="route-line", positions=[], color="#C71585", weight=4
+            )
+        ], id="map", style={'width': '50vw', 'height': '50vh', 'margin': '0 auto', 'marginBottom': '20px'}),
+        html.Div(id='weather-graph-container', style={
+            'width': '50vw',
+            'height': '50vh',
+            'margin': '0 auto',
+            'textAlign': 'center',
+            'marginBottom': '20px'
+        })
+    ], style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'}),
+    html.Div([
+        dcc.Dropdown(
+            id='metric-dropdown',
+            options=[
+                {'label': 'Скорость ветра', 'value': 'windspeed'},
+                {'label': 'Осадки', 'value': 'precipitation_sum'},
+                {'label': 'Максимальная температура', 'value': 'max_temperature'},
+                {'label': 'Минимальная температура', 'value': 'min_temperature'}
+            ],
+            clearable=False,
+            style={'width': '50%', 'margin': '0 auto', 'marginBottom': '10px'}
+        ),
+        dcc.Dropdown(
+            id='days-dropdown',
+            options=[
+                {'label': '3 дня', 'value': 3},
+                {'label': '5 дней', 'value': 5}
+            ],
+            value=3,
+            clearable=False,
+            style={'width': '50%', 'margin': '0 auto', 'marginBottom': '20px'}
+        )
+    ], style={'width': '100%', 'marginTop': '10px', 'marginBottom': '20px'}),
+    html.Div([
+        html.A("Назад", href="/", style={
+            'display': 'inline-block',
+            'padding': '10px 20px'
+        })
+    ], style={'textAlign': 'center', 'marginBottom': '20px'})
+], style={'minHeight': '100vh', 'padding': '20px'})
 
 @dash_app.callback(
-    dash.dependencies.Output('weather-histogram', 'figure'),
-    dash.dependencies.Input('weather-histogram', 'id')
+    [Output("markers-layer", "children"), Output("route-line", "positions")],
+    Input('map', 'id')
 )
-def update_histogram(_):
-    if not weather_data:
-        return px.bar()
+def add_route_and_markers(_):
+    city_markers = []
+    route_positions = []
 
-    start_city = weather_data["start_city"]
-    end_city = weather_data["end_city"]
-    start_weather = weather_data["start_weather"]
-    end_weather = weather_data["end_weather"]
+    for city in cities:
+        try:
+            coordinates = get_coordinates(city)
 
-    categories = ["Temperature", "Humidity", "Wind Speed", "Rain_probability"]
-    start_values = [
-        start_weather["temperature"],
-        start_weather["humidity"],
-        start_weather["wind_speed"],
-        start_weather["rain_probability"]
-    ]
-    end_values = [
-        end_weather["temperature"],
-        end_weather["humidity"],
-        end_weather["wind_speed"],
-        end_weather["rain_probability"]
-    ]
+            if coordinates:
+                route_positions.append(coordinates)
+                marker = dash_leaflet.Marker(position=coordinates, children=[
+                    dash_leaflet.Tooltip(city),
+                    dash_leaflet.Popup([html.H3(city, style={'textAlign': 'center'}), html.P("")])
+                ], id={'type': 'marker', 'index': city}, icon={
+                    "iconUrl": "https://www.flaticon.com/free-icon/location-pin_3179068?term=location&page=1&position=4&origin=tag&related_id=3179068",
+                    "iconSize": [25, 41],
+                    "iconAnchor": [12, 41],
+                    "popupAnchor": [1, -34]
+                })
+                city_markers.append(marker)
+        except Exception as e:
+            print(f"Ошибка с городом {city}: {e}")
+    return city_markers, route_positions
 
-    data = pd.DataFrame({
-        "Category": categories * 2,
-        "Value": start_values + end_values,
-        "City": [start_city] * 4 + [end_city] * 4
-    })
+@dash_app.callback(
+    Output("weather-graph-container", "children"),
+    [Input("metric-dropdown", "value"), Input("days-dropdown", "value")],
+    Input({'type': 'marker', 'index': ALL}, 'n_clicks')
+)
+def update_graph(selected_metric, days, _):
+    print(f"Triggered: {ctx.triggered_id}, Metric: {selected_metric}, Days: {days}")
 
-    fig = px.bar(
-        data,
-        x="Category",
-        y="Value",
-        color="City",
-        barmode="group",
-        title="Сравнение погодных условий"
-    )
+    city_name = cities[0] if cities else None
+    if ctx.triggered_id and isinstance(ctx.triggered_id, dict):
+        city_name = ctx.triggered_id["index"]
 
-    fig.update_layout(
-        xaxis_title="Показатели",
-        yaxis_title="Значения",
-        legend_title="Города"
-    )
+    if city_name in weather_data:
+        forecast = weather_data[city_name]
+        try:
+            dates = [day['date'] for day in forecast[:days]]
+            values = [day[selected_metric] for day in forecast[:days]]
 
-    return fig
+            print(f"Dates: {dates}, Values: {values}")
 
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(x=dates, y=values, mode='lines+markers', name=selected_metric,
+                           line=dict(color='green'))
+            )
+            fig.update_layout(
+                title=f'{selected_metric} в {city_name} за {days} дней',
+                xaxis_title='Дата',
+                yaxis_title='Значение',
+                template='plotly_white'
+            )
+            return dcc.Graph(figure=fig)
+        except KeyError as e:
+            return html.Div(f"Ошибка данных: {e}")
+
+    return html.Div("Нет данных для отображения")
 
 if __name__ == '__main__':
     app.run(debug=True)

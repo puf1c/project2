@@ -83,6 +83,78 @@ def check_bad_weather(weather_parameters: dict):
         return 'good'
 
 
+def get_weather_forecast(api_key, location_key, days):
+    try:
+        if days != 1 and days != 5:
+            raise ValueError("Количество дней должно быть 1 или 5.")
+
+        url = f"http://dataservice.accuweather.com/forecasts/v1/daily/{days}day/{location_key}"
+
+        params = {
+            "apikey": api_key,
+            "language": "ru-ru",
+            "metric": "true"
+        }
+
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+
+        data = response.json()
+
+        forecast = []
+        for daily_forecast in data.get("DailyForecasts", []):
+            forecast.append({
+                'date': daily_forecast['Date'],
+                "max_temperature": daily_forecast["Temperature"]["Maximum"]["Value"],
+                "min_temperature": daily_forecast["Temperature"]["Minimum"]["Value"],
+                "precipitation_sum": daily_forecast.get("Day", {}).get("PrecipitationProbability", 0),
+                "windspeed": daily_forecast.get("Day", {}).get("Wind", {}).get("Speed", {}).get("Value", 0),
+            })
+
+        return forecast
+
+    except Exception as e:
+        return None
+
+
+YANDEX_API_KEY = "67c3277c-91e1-4fdf-8a33-b8fec2870325"
+YANDEX_GEOCODER_URL = "https://geocode-maps.yandex.ru/1.x/"
+
+
+def get_coordinates(city_name):
+    try:
+        params = {
+            "apikey": YANDEX_API_KEY,
+            "geocode": city_name,
+            "format": "json",
+        }
+        response = requests.get(YANDEX_GEOCODER_URL, params=params)
+        response.raise_for_status()
+
+        data = response.json()
+        geo_object = (
+            data.get("response", {})
+            .get("GeoObjectCollection", {})
+            .get("featureMember", [{}])[0]
+            .get("GeoObject", {})
+        )
+
+        if not geo_object:
+            raise ValueError(f"Город '{city_name}' не найден. Проверьте правильность написания.")
+
+        # Извлекаем координаты
+        coordinates = geo_object.get("Point", {}).get("pos", "")
+        if not coordinates:
+            raise ValueError(f"Не удалось получить координаты для города '{city_name}'.")
+
+        lon, lat = map(float, coordinates.split(" "))
+        return lat, lon
+    except requests.RequestException as e:
+        raise ValueError(f"Ошибка подключения к Яндекс API: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Ошибка при обработке города '{city_name}': {str(e)}")
+
+
 #проверка функции check_bad_weather
 '''
 test_weather_params = {'temperature':-30, 'wind_speed': 20, 'rain_probability':30}
