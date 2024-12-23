@@ -1,11 +1,5 @@
 import requests
 
-API_KEY = "nnYAI8k1VksWAqzZOQEebcG1eJ6Q1Nw0"
-
-LATITUDE = "55.7558"
-LONGITUDE = "37.6173"
-
-
 def get_location_key_by_name(city_name: str, api_key: str):
     base_url = "http://dataservice.accuweather.com/locations/v1/cities/search"
     params = {
@@ -116,8 +110,8 @@ def get_weather_forecast(api_key, location_key, days):
     except Exception as e:
         return None
 
-
-YANDEX_API_KEY = "67c3277c-91e1-4fdf-8a33-b8fec2870325"
+# ОБЯЗАТЕЛЬНО К ЗАПОЛНЕНИЮ
+YANDEX_API_KEY = "ваш ключ для яндекс геокодера"
 YANDEX_GEOCODER_URL = "https://geocode-maps.yandex.ru/1.x/"
 
 
@@ -142,7 +136,6 @@ def get_coordinates(city_name):
         if not geo_object:
             raise ValueError(f"Город '{city_name}' не найден. Проверьте правильность написания.")
 
-        # Извлекаем координаты
         coordinates = geo_object.get("Point", {}).get("pos", "")
         if not coordinates:
             raise ValueError(f"Не удалось получить координаты для города '{city_name}'.")
@@ -150,9 +143,9 @@ def get_coordinates(city_name):
         lon, lat = map(float, coordinates.split(" "))
         return lat, lon
     except requests.RequestException as e:
-        raise ValueError(f"Ошибка подключения к Яндекс API: {str(e)}")
+        raise ValueError(f"Ошибка подключения: {str(e)}")
     except Exception as e:
-        raise ValueError(f"Ошибка при обработке города '{city_name}': {str(e)}")
+        raise ValueError(f"Ошибка при обработке '{city_name}': {str(e)}")
 
 
 #проверка функции check_bad_weather
